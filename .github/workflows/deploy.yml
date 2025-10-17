@@ -1,49 +1,31 @@
-# Nama workflow yang tampil di tab Actions GitHub
-name: Deploy Web2 to Oracle Cloud
+name: Deploy Web2 (praktek2cc)
 
-# Pemicu workflow
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
 
 jobs:
   deploy:
-    name: Deploy to Server
     runs-on: ubuntu-latest
 
     steps:
-      # Langkah 1: Checkout repository dari GitHub
       - name: Checkout repository
-        uses: actions/checkout@v3
-
-      # Langkah 2: Deploy ke server via SSH
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v0.1.7
+        uses: actions/checkout@v4
         with:
-          host: ${{ secrets.SERVER_IP }}           # IP Oracle Cloud
-          username: ubuntu
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          repository: dmsqil/praktek2cc
+          ref: main
 
-          script: |
-            echo "=== START DEPLOY WEB2 ==="
-            cd /var/www/web2.com/public_html || exit 1
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-            # Jika belum ada repo git di server, clone dulu
-            if [ ! -d ".git" ]; then
-              echo "Cloning repository for the first time..."
-              git clone https://github.com/Mandr11/web2.git .
-            else
-              echo "Pulling latest changes..."
-              git reset --hard
-              git pull origin main
-            fi
+      - name: Copy files to server (Web2)
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "mkdir -p /var/www/web2.com/public_html"
+          rsync -avz --delete ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/var/www/web2.com/public_html/
 
-            # Pastikan hak akses benar
-            sudo chown -R ubuntu:www-data /var/www/web2.com/public_html
-            sudo chmod -R 755 /var/www/web2.com/public_html
-
-            # Reload services
-            sudo systemctl reload nginx
-            sudo systemctl restart php8.1-fpm
-
-            echo "=== DEPLOY WEB2 SUCCESSFUL ==="
+      - name: Restart Nginx
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "sudo systemctl restart nginx"
